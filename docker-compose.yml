@@ -1,0 +1,68 @@
+version: '3.3'
+services:
+    homelabmysql:
+        container_name: homelab-mysql
+        hostname: homelab-mysql
+        runtime: runc
+        environment:
+            - MYSQL_ROOT_PASSWORD=changeme
+            - MYSQL_USER=admin
+            - MYSQL_PASSWORD=changeme
+            - 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+            - GOSU_VERSION=1.14
+            - MYSQL_MAJOR=8.0
+            - MYSQL_VERSION=8.0.31-1.el8
+            - MYSQL_SHELL_VERSION=8.0.31-1.el8
+        healthcheck:
+             test: mysqladmin ping -h 127.0.0.1 -u $$MYSQL_USER --password=$$MYSQL_PASSWORD
+             start_period: 5s
+             interval: 5s
+             timeout: 20s
+             retries: 55
+        volumes:
+            - /opt/mysql_data:/var/lib/mysql
+        ports:
+            - '3306:3306'
+            - '33060:33060'
+        image: mysql:latest
+        restart: unless-stopped
+    homelabguac:
+        container_name: homelab-guac
+        hostname: homelab-guac
+        runtime: runc
+        working_dir: /opt/guacamole
+        environment:
+            - user=guacamole
+            - GUACD_HOSTNAME=homelab-guacd
+            - GUACD_PORT=4822
+            - MYSQL_HOSTNAME=homelab-mysql
+            - MYSQL_PORT=3306
+            - MYSQL_DATABASE=guacamole_db
+            - MYSQL_USER=root
+            - MYSQL_PASSWORD=changeme
+            - TOTP_ENABLED=true
+        healthcheck:
+             test: "exit 0"
+        ports:
+            - '8080:8080'
+        depends_on:
+             homelabmysql:
+                  condition: service_healthy
+        image: guacamole/guacamole:latest
+        restart: unless-stopped
+    homelabguacd:
+        container_name: homelab-guacd
+        hostname: homelab-guacd
+        runtime: runc
+        environment:
+            - 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+            - LC_ALL=C.UTF-8
+            - LD_LIBRARY_PATH=/usr/local/guacamole/lib
+            - GUACD_LOG_LEVEL=info
+        ports:
+            - '4822:4822'
+        depends_on:
+             homelabguac:
+                 condition: service_healthy
+        image: guacamole/guacd:latest
+        restart: unless-stopped
